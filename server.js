@@ -15,6 +15,7 @@ app.use(express.json())
 app.use("/api/kingdom", require("./routes/kingdomRoute"));
 app.use("/api/taxonomy", require("./routes/taxonomyRoute"));
 app.use("/api/habitat", require("./routes/habitatRoute"));
+app.use("/api/specie", require("./routes/specieRoute"));
 
 app.listen(3000, ()=>{
     console.log("server http://localhost:3000")

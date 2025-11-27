@@ -150,6 +150,96 @@ exports.getSpecieByRangeStatus = async (req, res) => {
   }
 };
 
+// Excluir especies de una taxonomía (genus y family) específica usando NE/NOT.
+exports.findByTaxExclusion = async (req, res) => {
+  const { genus, family } = req.query;
+
+  const taxonomyExclusionCriteria = {};
+  if (genus) {
+    taxonomyExclusionCriteria.genus = { $regex: genus, $options: "i" };
+  }
+  if (family) {
+    taxonomyExclusionCriteria.family = { $regex: family, $options: "i" };
+  }
+
+  try {
+    const exclusionConditions = [];
+    if (genus) {
+      exclusionConditions.push({ 'taxonomyDetails.genus': taxonomyExclusionCriteria.genus });
+    }
+    if (family) {
+      exclusionConditions.push({ 'taxonomyDetails.family': taxonomyExclusionCriteria.family });
+    }
+
+    const pipeline = [
+      {
+        $lookup: {
+          from: 'taxonomies',
+          localField: 'taxonomy_id',
+          foreignField: '_id',
+          as: 'taxonomyDetails'
+        }
+      },
+      {
+        $unwind: {
+          path: '$taxonomyDetails',
+          preserveNullAndEmptyArrays: true
+        }
+      },
+    ];
+    if (exclusionConditions.length > 0) {
+      pipeline.push({
+        $match: {
+          $nor: exclusionConditions
+        }
+      });
+    }
+    const species = await Specie.aggregate(pipeline);
+    res.status(200).json(species);
+
+  } catch (error) {
+    res.status(500).json({ message: "Error al buscar especies por exclusión taxonómica.", error });
+  }
+};
+
+//Proyectar solo nombre común, nombre científico y estado de conservación usando PROJECT.
+exports.simpleSpecie = async (req, res) => {
+  try {
+    const pipeline = [
+      {
+        $project: {
+          _id: 0,
+          common_name: 1,
+          scientific_name: 1,
+          conservation_status: 1
+        }
+      }
+    ];
+
+    const species = await Specie.aggregate(pipeline);
+    res.status(200).json(species);
+
+  } catch (error) {
+    res.status(500).json({ message: "Error al obtener la lista simple de especies usando aggregate.", error });
+  }
+}
+
+//Ordenar especies por estado de conservación o por nivel taxonómico usando SORT
+exports.sortStatus = async (req, res) => {
+  try {
+    const species = await Specie.find({})
+      // Ordenar por el campo conservation_status alfabéticamente (Ascendente: 1)
+      .sort({ conservation_status: 1 });
+
+    res.status(200).json(species);
+
+  } catch (error) {
+    console.error(error);
+    res.status(500).json({ message: "Error al obtener las especies", error });
+  }
+};
+
+
 exports.createSpecie = async (req, res) => {
   try {
     const newSpecie = await Specie.create(req.body);

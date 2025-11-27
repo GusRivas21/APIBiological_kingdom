@@ -2,14 +2,15 @@ const express = require('express');
 const router = express.Router();
 const controller = require('../controllers/specieController');
 
-// Ruta para búsqueda con AND (nombre + taxonomía)
+router.get("/sortStatus", controller.sortStatus);
 router.get("/statusRange", controller.getSpecieByRangeStatus);
 router.get("/search", controller.getByNameAndTax);
 router.get("/country", controller.getSpecieByCountry);
-
-
-//Ruta para buscar por estado de conservación
 router.get('/status', controller.getSpecieByStatus);
+router.get("/exclude", controller.findByTaxExclusion);
+router.get("/simple", controller.simpleSpecie);
+
+
 router.get('/', controller.getSpecies);
 router.get('/:id', controller.getSpecieById);
 router.post('/', controller.createSpecie);

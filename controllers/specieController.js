@@ -49,40 +49,66 @@ exports.getSpecieByStatus = async (req, res) => {
   }
 }
 
-//buscar por nombre y taxonomia genus o family
+//Buscar especies filtrando por nombre científico y taxonomía usando AND.
 exports.getByNameAndTax = async (req, res) => {
-  const { name, genus, family } = req.query;
-
-  let specieFilter = {};
-  if (name) {
-    specieFilter.scientific_name = { $regex: name, $options: "i" };
-  }
-
-  let taxonomyMatch = {};
-  if (genus) {
-    taxonomyMatch.genus = { $regex: genus, $options: "i" };
-  }
-  if (family) {
-    taxonomyMatch.family = { $regex: family, $options: "i" };
-  }
-
   try {
-    let species = await Specie.find(specieFilter)
-      .populate({
-        path: "taxonomy_id",
-        match: taxonomyMatch,
-      });
+    const { name, phylum, class: classLevel, order, family, genus } = req.query;
+    const validTaxonomyLevels = ['phylum', 'class', 'order', 'family', 'genus'];
+    const taxonomyFilters = {};
 
-    if (genus || family) {
-      species = species.filter(specie => specie.taxonomy_id !== null);
+    validTaxonomyLevels.forEach(level => {
+      const value = level === 'class' ? classLevel : req.query[level];
+
+      if (value) {
+        taxonomyFilters[`taxonomyDetails.${level}`] = { $regex: value, $options: "i" };
+      }
+    });
+
+    const pipeline = [];
+
+    pipeline.push({
+      $lookup: {
+        from: 'taxonomies',
+        localField: 'taxonomy_id',
+        foreignField: '_id',
+        as: 'taxonomyDetails'
+      }
+    });
+
+    pipeline.push({
+      $unwind: {
+        path: '$taxonomyDetails',
+      }
+    });
+
+    const matchConditions = [];
+
+    if (name) {
+      matchConditions.push({
+        scientific_name: { $regex: name, $options: "i" }
+      });
     }
 
+    if (Object.keys(taxonomyFilters).length > 0) {
+      matchConditions.push(taxonomyFilters);
+    }
+
+    if (matchConditions.length > 0) {
+      pipeline.push({
+        $match: {
+          $and: matchConditions
+        }
+      });
+    }
+
+    const species = await Specie.aggregate(pipeline);
     res.status(200).json(species);
 
   } catch (error) {
-    res.status(500).json({ message: "Error al buscar especies", error });
+    res.status(500).json({ message: "Error al buscar especies", error: error.message });
   }
 };
+
 
 //Buscar especies cuya distribución geográfica incluya un país o región usando IN.
 exports.getSpecieByCountry = async (req, res) => {
@@ -152,24 +178,21 @@ exports.getSpecieByRangeStatus = async (req, res) => {
 
 // Excluir especies de una taxonomía (genus y family) específica usando NE/NOT.
 exports.findByTaxExclusion = async (req, res) => {
-  const { genus, family } = req.query;
-
-  const taxonomyExclusionCriteria = {};
-  if (genus) {
-    taxonomyExclusionCriteria.genus = { $regex: genus, $options: "i" };
-  }
-  if (family) {
-    taxonomyExclusionCriteria.family = { $regex: family, $options: "i" };
-  }
-
   try {
+    const { phylum, class: classLevel, order, family, genus } = req.query;
+
+    const validTaxonomyLevels = ['phylum', 'class', 'order', 'family', 'genus'];
     const exclusionConditions = [];
-    if (genus) {
-      exclusionConditions.push({ 'taxonomyDetails.genus': taxonomyExclusionCriteria.genus });
-    }
-    if (family) {
-      exclusionConditions.push({ 'taxonomyDetails.family': taxonomyExclusionCriteria.family });
-    }
+
+    validTaxonomyLevels.forEach(level => {
+      const value = level === 'class' ? classLevel : req.query[level];
+
+      if (value) {
+        exclusionConditions.push({
+          [`taxonomyDetails.${level}`]: { $regex: value, $options: "i" }
+        });
+      }
+    });
 
     const pipeline = [
       {
@@ -187,6 +210,7 @@ exports.findByTaxExclusion = async (req, res) => {
         }
       },
     ];
+
     if (exclusionConditions.length > 0) {
       pipeline.push({
         $match: {
@@ -194,11 +218,13 @@ exports.findByTaxExclusion = async (req, res) => {
         }
       });
     }
+
     const species = await Specie.aggregate(pipeline);
     res.status(200).json(species);
 
   } catch (error) {
-    res.status(500).json({ message: "Error al buscar especies por exclusión taxonómica.", error });
+    console.error("Error al buscar especies por exclusión taxonómica:", error);
+    res.status(500).json({ message: "Error al buscar especies por exclusión taxonómica.", error: error.message });
   }
 };
 
@@ -227,15 +253,173 @@ exports.simpleSpecie = async (req, res) => {
 //Ordenar especies por estado de conservación o por nivel taxonómico usando SORT
 exports.sortStatus = async (req, res) => {
   try {
-    const species = await Specie.find({})
-      // Ordenar por el campo conservation_status alfabéticamente (Ascendente: 1)
-      .sort({ conservation_status: 1 });
+    const statusOrder = [
+      "preocupación menor",
+      "casi amenazado",
+      "vulnerable",
+      "en peligro",
+      "en peligro crítico",
+      "extinto en estado silvestre",
+      "extinto"
+    ];
+
+
+    const pipeline = [
+      {
+        $addFields: {
+          sortIndex: {
+            $indexOfArray: [statusOrder, '$conservation_status']
+          }
+        }
+      },
+      {
+        $sort: {
+          sortIndex: 1
+        }
+      },
+      {
+        $project: {
+          sortIndex: 0
+        }
+      }
+    ];
+
+    const species = await Specie.aggregate(pipeline);
+
+    res.status(200).json(species);
+
+  } catch (error) {
+    res.status(500).json({ message: "Error al obtener las especies", error: error.message });
+  }
+};
+
+//Contar cuántas especies existen por categoría taxonómica usando GROUP + SUM.
+exports.sumSpeciesByTax = async (req, res) => {
+  const { level, value } = req.query;
+  const validTaxonomyLevels = ['phylum', 'class', 'order', 'family', 'genus'];
+  if (level && !validTaxonomyLevels.includes(level)) {
+    return res.status(400).json({ message: `Nivel taxonómico no válido. Debe ser uno de: ${validTaxonomyLevels.join(', ')}` });
+  }
+
+  try {
+    const pipeline = [
+      {
+        $lookup: {
+          from: 'taxonomies',
+          localField: 'taxonomy_id',
+          foreignField: '_id',
+          as: 'taxonomyDetails'
+        }
+      },
+      {
+        $unwind: {
+          path: '$taxonomyDetails',
+          preserveNullAndEmptyArrays: true
+        }
+      },
+    ];
+    if (level && value) {
+      const matchField = `taxonomyDetails.${level}`;
+      const matchCriteria = {
+        [matchField]: { $regex: value, $options: "i" }
+      };
+
+      pipeline.push({
+        $match: matchCriteria
+      });
+    }
+
+    const groupingKey = {};
+    if (level) {
+      groupingKey[level] = `$taxonomyDetails.${level}`;
+    } else {
+      groupingKey._id = null;
+    }
+
+    pipeline.push({
+      $group: {
+        _id: groupingKey,
+        count: { $sum: 1 }
+      }
+    });
+
+    const species = await Specie.aggregate(pipeline);
+    res.status(200).json(species);
+
+  } catch (error) {
+    res.status(500).json({ message: "Error al contar especies por taxonomía.", error: error.message });
+  }
+};
+
+//Mostrar especies detallando sus áreas de distribución usando PROJECT.
+
+exports.speciesDistribution = async (req, res) => {
+  try {
+    const pipeline = [
+      {
+        $project: {
+          _id: 0,
+          common_name: 1,
+          scientific_name: 1,
+          geographic_distribution: 1
+        }
+      }
+    ];
+
+    const species = await Specie.aggregate(pipeline);
+    res.status(200).json(species);
+
+  } catch (error) {
+    res.status(500).json({ message: "Error al obtener las especies.", error });
+  }
+}
+
+//Obtener la especie más amenazada según estado de conservación usando SORT + LIMIT.
+exports.endangeredSpecies = async (req, res) => {
+  try {
+    const statusOrder = [
+      "preocupación menor",
+      "casi amenazado",
+      "vulnerable",
+      "en peligro",
+      "en peligro crítico",
+      "extinto en estado silvestre",
+      "extinto"
+    ];
+
+
+    const pipeline = [
+      {
+        $addFields: {
+          sortIndex: {
+            $indexOfArray: [
+              statusOrder,
+              { $toLower: '$conservation_status' }
+            ]
+          }
+        }
+      },
+      {
+        $sort: {
+          sortIndex: -1
+        }
+      },
+      {
+        $limit: 1
+      },
+      {
+        $project: {
+          sortIndex: 0
+        }
+      }
+    ];
+    const species = await Specie.aggregate(pipeline);
 
     res.status(200).json(species);
 
   } catch (error) {
     console.error(error);
-    res.status(500).json({ message: "Error al obtener las especies", error });
+    res.status(500).json({ message: "Error al obtener las especies", error: error.message });
   }
 };
 

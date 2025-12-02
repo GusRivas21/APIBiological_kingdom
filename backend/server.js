@@ -1,14 +1,14 @@
 import express from "express";
 import cors from "cors";
 import dotenv from "dotenv";
-import DBConnection from "./config/database.js"; // Se requiere .js
+import DBConnection from "./config/database.js";
 import swaggerUI from 'swagger-ui-express';
 import swaggerDocumentation from './swagger.json' with {type: 'json'};
-import kingdomRouter from "./routes/kingdomRoute.js"; // Se requiere .js, renombrar
-import taxonomyRouter from "./routes/taxonomyRoute.js"; // Se requiere .js, renombrar
-import habitatRouter from "./routes/habitatRoute.js"; // Se requiere .js, renombrar
-import specieRouter from "./routes/specieRoute.js"; // Se requiere .js, renombrar
-import humanRiskRouter from "./routes/human_riskRoute.js"; // Se requiere .js, renombrar
+import kingdomRouter from "./routes/kingdomRoute.js"; 
+import taxonomyRouter from "./routes/taxonomyRoute.js"; 
+import habitatRouter from "./routes/habitatRoute.js"; 
+import specieRouter from "./routes/specieRoute.js"; 
+import humanRiskRouter from "./routes/human_riskRoute.js";
 
 dotenv.config();
 DBConnection();
@@ -18,10 +18,8 @@ const app = express();
 app.use(cors());
 app.use(express.json())
 
-// Rutas
-// Importante: swaggerUI necesita dos pasos: .serve y .setup. 
-// La ruta del endpoint debe iniciar con /
 app.use('/doc', swaggerUI.serve, swaggerUI.setup(swaggerDocumentation));
+
 
 app.use("/api/kingdom", kingdomRouter);
 app.use("/api/taxonomy", taxonomyRouter);

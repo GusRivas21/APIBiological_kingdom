@@ -156,13 +156,22 @@ export const sortStatus = async (req, res) => {
   try {
     const statusOrder = [
       "preocupación menor", "casi amenazado", "vulnerable", "en peligro",
-      "en peligro crítico", "extinto en estado silvestre", "extinto"
+      "en peligro crítico", "extinto"
     ];
 
     const species = await Specie.aggregate([
-      { $addFields: { sortIndex: { $indexOfArray: [statusOrder, '$conservation_status'] } } },
+      {
+        $addFields: {
+          sortIndex: {
+            $indexOfArray: [
+              statusOrder,
+              { $toLower: "$conservation_status" } 
+            ]
+          }
+        }
+      },
       { $sort: { sortIndex: 1 } },
-      { $project: { sortIndex: 0 } }
+      { $project: { scientific_name: 1, conservation_status: 1, _id: 0 } }
     ]);
 
     res.status(200).json(species);
@@ -243,6 +252,7 @@ export const createSpecie = async (req, res) => {
 
 // Actualizar especie
 export const updateSpecie = async (req, res) => {
+  
   try {
     const updatedSpecie = await Specie.findByIdAndUpdate(req.params.id, req.body, { new: true, runValidators: true });
     if (!updatedSpecie) return res.status(404).json({ message: 'Especie no encontrada' });

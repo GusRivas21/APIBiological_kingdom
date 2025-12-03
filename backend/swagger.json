@@ -5,7 +5,7 @@
     "description": "API permite conocer los reinos biológicos y las especies que son parte",
     "version": "1.0.0"
   },
-  "host": "thttps://api-biological-kingdom.vercel.app",
+  "host": "api-biological-kingdom.vercel.app",
   "basePath": "/",
   "schemes": [
     "https"

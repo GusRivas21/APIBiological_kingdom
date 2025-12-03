@@ -18,7 +18,6 @@ const app = express();
 app.use(cors());
 app.use(express.json());
 
-// Configurar Swagger dinámicamente según el entorno
 const swaggerConfig = {
   ...swaggerDocumentation,
   host: process.env.SWAGGER_HOST || 'localhost:3000',
@@ -33,7 +32,6 @@ app.use("/api/habitat", habitatRouter);
 app.use("/api/specie", specieRouter);
 app.use("/api/human_risk", humanRiskRouter);
 
-// Ruta raíz para verificar que la API está funcionando
 app.get('/', (req, res) => {
     res.json({ 
         message: "API is running on Vercel",

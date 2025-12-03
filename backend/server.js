@@ -1,14 +1,14 @@
 import express from "express";
 import cors from "cors";
 import dotenv from "dotenv";
-import DBConnection from "../config/database.js";
+import DBConnection from "./config/database.js";
 import swaggerUI from 'swagger-ui-express';
-import swaggerDocumentation from '../swagger.json' with {type: 'json'};
-import kingdomRouter from "../routes/kingdomRoute.js"; 
-import taxonomyRouter from "../routes/taxonomyRoute.js"; 
-import habitatRouter from "../routes/habitatRoute.js"; 
-import specieRouter from "../routes/specieRoute.js"; 
-import humanRiskRouter from "../routes/human_riskRoute.js";
+import swaggerDocumentation from './swagger.json' with {type: 'json'};
+import kingdomRouter from "./routes/kingdomRoute.js"; 
+import taxonomyRouter from "./routes/taxonomyRoute.js"; 
+import habitatRouter from "./routes/habitatRoute.js"; 
+import specieRouter from "./routes/specieRoute.js"; 
+import humanRiskRouter from "./routes/human_riskRoute.js";
 
 dotenv.config();
 DBConnection();
@@ -39,5 +39,5 @@ if (process.env.NODE_ENV !== 'production') {
     });
 }
 
-// Exportar la app para Vercel
+// Exportar la app para Vercel (IMPORTANTE)
 export default app;

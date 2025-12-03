@@ -1,4 +1,5 @@
 import { useState, useEffect } from "react";
+import { apiEndpoints, fetchFromAPI } from "@/config/api";
 
 const SpeciesSection = () => {
   const [species, setSpecies] = useState([]);
@@ -6,11 +7,7 @@ const SpeciesSection = () => {
   const [error, setError] = useState(null);
 
   useEffect(() => {
-    fetch("http://localhost:3000/api/specie")
-      .then((res) => {
-        if (!res.ok) throw new Error("Error al obtener los datos");
-        return res.json();
-      })
+    fetchFromAPI(apiEndpoints.specie)
       .then((data) => {
         setSpecies(data);
         setLoading(false);
@@ -52,7 +49,9 @@ const SpeciesSection = () => {
                 <h3 className="font-heading font-semibold text-lg">
                   {item.common_name}
                 </h3>
-                <p className="text-sm text-muted-foreground">{item.kingdom_id.scientific_name}</p>
+                <p className="text-sm text-muted-foreground">
+                  {item.kingdom_id.scientific_name}
+                </p>
               </div>
             </div>
           ))}
